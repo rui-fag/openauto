@@ -13,7 +13,8 @@ builds on current Linux distributions.
 > **Trademarks / license:** Android Auto is a registered trademark of Google Inc.
 > This software is **not** certified by Google; it is created for R&D purposes.
 > Do not use while driving. You use it at your own risk.
-> License: **GNU GPLv3** — Copyright (c) 2018 f1x.studio (Michał Szwaj),
+> License: **GNU GPLv3** — see [COPYING](COPYING).
+> Copyright (c) 2018 f1x.studio (Michał Szwaj),
 > plus later contributors to this fork.
 
 ---
