@@ -18,11 +18,26 @@
 
 #pragma once
 
-#include <QMediaPlayer>
+#include <memory>
+#include <mutex>
 #include <QVideoWidget>
+#include <QVideoSink>
+#include <QVideoFrame>
 #include <boost/noncopyable.hpp>
 #include <f1x/openauto/autoapp/Projection/VideoOutput.hpp>
-#include <f1x/openauto/autoapp/Projection/SequentialBuffer.hpp>
+extern "C"
+{
+#include <libavutil/buffer.h>
+}
+
+struct AVCodec;
+struct AVCodecParserContext;
+struct AVCodecContext;
+struct AVPacket;
+struct AVFrame;
+struct SwsContext;
+
+struct AVBufferRef;
 
 namespace f1x
 {
@@ -39,10 +54,13 @@ class QtVideoOutput: public QObject, public VideoOutput, boost::noncopyable
 
 public:
     QtVideoOutput(configuration::IConfiguration::Pointer configuration);
+    ~QtVideoOutput() override;
+
     bool open() override;
     bool init() override;
     void write(uint64_t timestamp, const aasdk::common::DataConstBuffer& buffer) override;
     void stop() override;
+    QWidget* getVideoWidget() const { return videoWidget_.get(); }
 
 signals:
     void startPlayback();
@@ -52,11 +70,30 @@ protected slots:
     void createVideoOutput();
     void onStartPlayback();
     void onStopPlayback();
+    void presentLatestFrame();
 
 private:
-    SequentialBuffer videoBuffer_;
+    void initDecoder();
+    void cleanupDecoder();
+    void cleanupDecoderUnlocked();
+    void processDecodedFrame(AVFrame* frame);
+
     std::unique_ptr<QVideoWidget> videoWidget_;
-    std::unique_ptr<QMediaPlayer> mediaPlayer_;
+    QVideoSink* videoSink_{nullptr};
+
+    const AVCodec* codec_{nullptr};
+    AVCodecParserContext* parser_{nullptr};
+    AVCodecContext* codecContext_{nullptr};
+	struct AVBufferRef* hwDeviceContext_{nullptr};
+    AVPacket* packet_{nullptr};
+    AVFrame* frame_{nullptr};
+    AVFrame* softwareFrame_{nullptr};
+    SwsContext* swsContext_{nullptr};
+    std::mutex decoderMutex_;
+
+    std::mutex frameMutex_;
+    QVideoFrame latestFrame_;
+    bool hasPendingFrame_{false};
 };
 
 }

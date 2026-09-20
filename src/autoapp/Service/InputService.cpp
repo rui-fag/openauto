@@ -20,6 +20,8 @@
 #include <f1x/openauto/Common/Log.hpp>
 #include <f1x/openauto/autoapp/Service/InputService.hpp>
 
+#include <chrono>
+
 namespace f1x
 {
 namespace openauto
@@ -29,7 +31,7 @@ namespace autoapp
 namespace service
 {
 
-InputService::InputService(boost::asio::io_service& ioService, aasdk::messenger::IMessenger::Pointer messenger, projection::IInputDevice::Pointer inputDevice)
+InputService::InputService(boost::asio::io_context& ioService, aasdk::messenger::IMessenger::Pointer messenger, projection::IInputDevice::Pointer inputDevice)
     : strand_(ioService)
     , channel_(std::make_shared<aasdk::channel::input::InputServiceChannel>(strand_, std::move(messenger)))
     , inputDevice_(std::move(inputDevice))
@@ -39,7 +41,7 @@ InputService::InputService(boost::asio::io_service& ioService, aasdk::messenger:
 
 void InputService::start()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
+    boost::asio::dispatch(strand_, [this, self = this->shared_from_this()]() {
         OPENAUTO_LOG(info) << "[InputService] start.";
         channel_->receive(this->shared_from_this());
     });
@@ -47,7 +49,7 @@ void InputService::start()
 
 void InputService::stop()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
+    boost::asio::dispatch(strand_, [this, self = this->shared_from_this()]() {
         OPENAUTO_LOG(info) << "[InputService] stop.";
         inputDevice_->stop();
     });
@@ -61,7 +63,6 @@ void InputService::fillFeatures(aasdk::proto::messages::ServiceDiscoveryResponse
     channelDescriptor->set_channel_id(static_cast<uint32_t>(channel_->getId()));
 
     auto* inputChannel = channelDescriptor->mutable_input_channel();
-
     const auto& supportedButtonCodes = inputDevice_->getSupportedButtonCodes();
 
     for(const auto& buttonCode : supportedButtonCodes)
@@ -71,11 +72,13 @@ void InputService::fillFeatures(aasdk::proto::messages::ServiceDiscoveryResponse
 
     if(inputDevice_->hasTouchscreen())
     {
-        const auto& touchscreenSurface = inputDevice_->getTouchscreenGeometry();
+        const auto& touchscreenSurface = inputDevice_->getDisplayGeometry();
         auto touchscreenConfig = inputChannel->mutable_touch_screen_config();
 
         touchscreenConfig->set_width(touchscreenSurface.width());
         touchscreenConfig->set_height(touchscreenSurface.height());
+        OPENAUTO_LOG(info) << "[InputService] touch coordinate space: "
+                            << touchscreenSurface.width() << "x" << touchscreenSurface.height();
     }
 }
 
@@ -132,14 +135,19 @@ void InputService::onBindingRequest(const aasdk::proto::messages::BindingRequest
 
 void InputService::onChannelError(const aasdk::error::Error& e)
 {
-    OPENAUTO_LOG(error) << "[SensorService] channel error: " << e.what();
+    OPENAUTO_LOG(error) << "[InputService] channel error: " << e.what();
 }
 
 void InputService::onButtonEvent(const projection::ButtonEvent& event)
 {
-    auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch());
+    // Android Auto expects elapsed-realtime microseconds, not wall-clock epoch
+    // microseconds.  steady_clock is the closest equivalent on the head unit.
+    auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
 
-    strand_.dispatch([this, self = this->shared_from_this(), event = std::move(event), timestamp = std::move(timestamp)]() {
+    boost::asio::dispatch(strand_,
+        [this, self = this->shared_from_this(),
+         event = std::move(event), timestamp = std::move(timestamp)]() {
+
         aasdk::proto::messages::InputEventIndication inputEventIndication;
         inputEventIndication.set_timestamp(timestamp.count());
 
@@ -166,22 +174,37 @@ void InputService::onButtonEvent(const projection::ButtonEvent& event)
 
 void InputService::onTouchEvent(const projection::TouchEvent& event)
 {
-    auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch());
+    auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
 
-    strand_.dispatch([this, self = this->shared_from_this(), event = std::move(event), timestamp = std::move(timestamp)]() {
+    boost::asio::dispatch(strand_,
+        [this, self = this->shared_from_this(),
+         event = std::move(event), timestamp = std::move(timestamp)]() {
+
         aasdk::proto::messages::InputEventIndication inputEventIndication;
         inputEventIndication.set_timestamp(timestamp.count());
-
         auto touchEvent = inputEventIndication.mutable_touch_event();
         touchEvent->set_touch_action(event.type);
         auto touchLocation = touchEvent->add_touch_location();
+		touchEvent->set_action_index(0);
         touchLocation->set_x(event.x);
         touchLocation->set_y(event.y);
-        touchLocation->set_pointer_id(0);
+		touchLocation->set_pointer_id(0);
+
+        OPENAUTO_LOG(debug)
+			<< "[InputService] touch:"
+			<< " raw=(" << event.x << "," << event.y << ")"
+			<< " type=(" << event.type << ")"
+			<< " actionIndex=" << touchEvent->action_index()
+			<< " locations=" << touchEvent->touch_location_size()
+			<< " pointerId=" << touchLocation->pointer_id()
+			<< " bytes=" << inputEventIndication.ByteSizeLong();
+
 
         auto promise = aasdk::channel::SendPromise::defer(strand_);
-        promise->then([]() {}, std::bind(&InputService::onChannelError, this->shared_from_this(), std::placeholders::_1));
-        channel_->sendInputEventIndication(inputEventIndication, std::move(promise));
+		promise->then([x = event.x, y = event.y, type = event.type]() {
+			OPENAUTO_LOG(debug) << "[InputService] touch sent: raw=(" << x << "," << y << ") type=(" << type << ")";
+		}, std::bind(&InputService::onChannelError, this->shared_from_this(), std::placeholders::_1));
+		channel_->sendInputEventIndication(inputEventIndication, std::move(promise));
     });
 }
 

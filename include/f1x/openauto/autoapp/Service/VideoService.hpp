@@ -38,7 +38,7 @@ class VideoService: public aasdk::channel::av::IVideoServiceChannelEventHandler,
 public:
     typedef std::shared_ptr<VideoService> Pointer;
 
-    VideoService(boost::asio::io_service& ioService, aasdk::messenger::IMessenger::Pointer messenger, projection::IVideoOutput::Pointer videoOutput);
+    VideoService(boost::asio::io_context& ioService, aasdk::messenger::IMessenger::Pointer messenger, projection::IVideoOutput::Pointer videoOutput);
 
     void start() override;
     void stop() override;
@@ -46,6 +46,7 @@ public:
     void onChannelOpenRequest(const aasdk::proto::messages::ChannelOpenRequest& request) override;
     void onAVChannelSetupRequest(const aasdk::proto::messages::AVChannelSetupRequest& request) override;
     void onAVChannelStartIndication(const aasdk::proto::messages::AVChannelStartIndication& indication) override;
+	void onAVChannelStopIndication(const aasdk::proto::messages::AVChannelStopIndication& indication) override;
     void onAVMediaWithTimestampIndication(aasdk::messenger::Timestamp::ValueType timestamp, const aasdk::common::DataConstBuffer& buffer) override;
     void onAVMediaIndication(const aasdk::common::DataConstBuffer& buffer) override;
     void onVideoFocusRequest(const aasdk::proto::messages::VideoFocusRequest& request) override;
@@ -55,7 +56,7 @@ private:
     using std::enable_shared_from_this<VideoService>::shared_from_this;
     void sendVideoFocusIndication();
 
-    boost::asio::io_service::strand strand_;
+    boost::asio::io_context::strand strand_;
     aasdk::channel::av::VideoServiceChannel::Pointer channel_;
     projection::IVideoOutput::Pointer videoOutput_;
     int32_t session_;

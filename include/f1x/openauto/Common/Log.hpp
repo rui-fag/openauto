@@ -20,4 +20,25 @@
 
 #include <boost/log/trivial.hpp>
 
+namespace openauto::logging
+{
+class NullLog
+{
+public:
+    template<typename T>
+    constexpr const NullLog& operator<<(T&&) const noexcept
+    {
+        return *this;
+    }
+};
+}
+
+#if defined(OPENAUTO_LOG_ERRORS_ONLY)
+#define OPENAUTO_LOG_error BOOST_LOG_TRIVIAL(error) << "[OpenAuto] "
+#define OPENAUTO_LOG_debug if constexpr (false) ::openauto::logging::NullLog()
+#define OPENAUTO_LOG_info if constexpr (false) ::openauto::logging::NullLog()
+#define OPENAUTO_LOG_warning if constexpr (false) ::openauto::logging::NullLog()
+#define OPENAUTO_LOG(severity) OPENAUTO_LOG_##severity
+#else
 #define OPENAUTO_LOG(severity) BOOST_LOG_TRIVIAL(severity) << "[OpenAuto] "
+#endif

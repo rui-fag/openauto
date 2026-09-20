@@ -19,8 +19,9 @@
 #pragma once
 
 #include <mutex>
-#include <QAudioInput>
+#include <QAudioSource>
 #include <QAudioFormat>
+#include <QMediaDevices>
 #include <f1x/openauto/autoapp/Projection/IAudioInput.hpp>
 
 namespace f1x
@@ -60,8 +61,9 @@ private slots:
 private:
     QAudioFormat audioFormat_;
     QIODevice* ioDevice_;
-    std::unique_ptr<QAudioInput> audioInput_;
+    std::unique_ptr<QAudioSource> audioInput_;
     ReadPromise::Pointer readPromise_;
+    uint32_t sampleSize_;
     mutable std::mutex mutex_;
 
     static constexpr size_t cSampleSize = 2056;

@@ -1,0 +1,99 @@
+# ================= aasdk .gitignore =================
+# Build outputs
+bin/
+lib/
+build/
+build-*/
+cmake-build-*/
+out/
+
+# CMake generated files (in-source and out-of-source builds)
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+Testing/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+install_manifest.txt
+compile_commands.json
+
+# Protobuf compiler outputs regenerated on every build.
+# (Only the .proto sources are tracked.)
+aasdk_proto/*.pb.h
+aasdk_proto/*.pb.cc
+
+# Qt auto-generated files (only relevant when built as part of openauto)
+*_autogen/
+.qt/
+*.moc
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+
+# Object files, static/shared libs and debug symbols
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.dSYM/
+*.pdb
+*.ilk
+*.exp
+
+# Unit-test and coverage artifacts
+aasdk_ut
+aasdk_coverage*
+*.gcda
+*.gcno
+*.gcov
+lcov.info
+coverage/
+
+# Profiling and debugging artifacts
+perf.data
+perf.data.old
+gmon.out
+*.prof
+core
+core.*
+
+# ctags / cscope databases
+tags
+TAGS
+.tags
+cscope.*
+
+# Editor and IDE files
+*~
+*.swp
+*.swo
+*.orig
+*.rej
+.vscode/
+.idea/
+.vs/
+*.cbp
+*.creator*
+.clangd/
+.cache/clangd/
+
+# Qt Creator / CMake user-local settings
+CMakeLists.txt.user
+*.pro.user
+
+# Local scratch / agent working files
+.agents/
+.codex/
+diff.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

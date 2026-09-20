@@ -20,6 +20,8 @@
 #include <f1x/openauto/autoapp/Service/AndroidAutoEntity.hpp>
 #include <f1x/openauto/Common/Log.hpp>
 
+#include <chrono>
+
 namespace f1x
 {
 namespace openauto
@@ -29,7 +31,7 @@ namespace autoapp
 namespace service
 {
 
-AndroidAutoEntity::AndroidAutoEntity(boost::asio::io_service& ioService,
+AndroidAutoEntity::AndroidAutoEntity(boost::asio::io_context& ioService,
                                      aasdk::messenger::ICryptor::Pointer cryptor,
                                      aasdk::transport::ITransport::Pointer transport,
                                      aasdk::messenger::IMessenger::Pointer messenger,
@@ -55,7 +57,12 @@ AndroidAutoEntity::~AndroidAutoEntity()
 
 void AndroidAutoEntity::start(IAndroidAutoEntityEventHandler& eventHandler)
 {
-    strand_.dispatch([this, self = this->shared_from_this(), eventHandler = &eventHandler]() {
+		auto eventHandlerPtr = &eventHandler;
+
+		boost::asio::post(strand_,
+			[this, self = this->shared_from_this(),
+			 eventHandler = eventHandlerPtr]() mutable {
+
         OPENAUTO_LOG(info) << "[AndroidAutoEntity] start.";
 
         eventHandler_ = eventHandler;
@@ -71,7 +78,9 @@ void AndroidAutoEntity::start(IAndroidAutoEntityEventHandler& eventHandler)
 
 void AndroidAutoEntity::stop()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
+	boost::asio::post(strand_,
+		[this, self = this->shared_from_this()]() mutable {
+
         OPENAUTO_LOG(info) << "[AndroidAutoEntity] stop.";
 
         eventHandler_ = nullptr;
@@ -227,8 +236,11 @@ void AndroidAutoEntity::onNavigationFocusRequest(const aasdk::proto::messages::N
     controlServiceChannel_->receive(this->shared_from_this());
 }
 
-void AndroidAutoEntity::onPingResponse(const aasdk::proto::messages::PingResponse&)
+void AndroidAutoEntity::onPingResponse(
+    const aasdk::proto::messages::PingResponse&)
 {
+    OPENAUTO_LOG(info) << "[AndroidAutoEntity] <<< PING RESPONSE";
+
     pinger_->pong();
     controlServiceChannel_->receive(this->shared_from_this());
 }
@@ -268,12 +280,27 @@ void AndroidAutoEntity::schedulePing()
 
 void AndroidAutoEntity::sendPing()
 {
+    OPENAUTO_LOG(info) << "[AndroidAutoEntity] >>> PING";
+
     auto promise = aasdk::channel::SendPromise::defer(strand_);
-    promise->then([]() {}, std::bind(&AndroidAutoEntity::onChannelError, this->shared_from_this(), std::placeholders::_1));
+
+    promise->then(
+        [this, self = this->shared_from_this()]() {
+            OPENAUTO_LOG(info) << "[AndroidAutoEntity] >>> PING SENT";
+        },
+        [this, self = this->shared_from_this()](const aasdk::error::Error& e) {
+            OPENAUTO_LOG(error) << "[AndroidAutoEntity] >>> PING SEND ERROR: "
+                                << e.what();
+            this->onChannelError(e);
+    });
 
     aasdk::proto::messages::PingRequest request;
+    const auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch());
+    request.set_timestamp(timestamp.count());
     controlServiceChannel_->sendPingRequest(request, std::move(promise));
 }
+
 
 }
 }

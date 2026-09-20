@@ -31,15 +31,25 @@ namespace projection
 
 QtAudioInput::QtAudioInput(uint32_t channelCount, uint32_t sampleSize, uint32_t sampleRate)
     : ioDevice_(nullptr)
+    , sampleSize_(sampleSize)
 {
     qRegisterMetaType<IAudioInput::StartPromise::Pointer>("StartPromise::Pointer");
 
     audioFormat_.setChannelCount(channelCount);
     audioFormat_.setSampleRate(sampleRate);
-    audioFormat_.setSampleSize(sampleSize);
-    audioFormat_.setCodec("audio/pcm");
-    audioFormat_.setByteOrder(QAudioFormat::LittleEndian);
-    audioFormat_.setSampleType(QAudioFormat::SignedInt);
+    audioFormat_.setChannelConfig(QAudioFormat::defaultChannelConfigForChannelCount(channelCount));
+    if(sampleSize == 8)
+    {
+        audioFormat_.setSampleFormat(QAudioFormat::SampleFormat::UInt8);
+    }
+    else if(sampleSize == 32)
+    {
+        audioFormat_.setSampleFormat(QAudioFormat::SampleFormat::Int32);
+    }
+    else
+    {
+        audioFormat_.setSampleFormat(QAudioFormat::SampleFormat::Int16);
+    }
 
     this->moveToThread(QApplication::instance()->thread());
     connect(this, &QtAudioInput::startRecording, this, &QtAudioInput::onStartRecording, Qt::QueuedConnection);
@@ -50,7 +60,7 @@ QtAudioInput::QtAudioInput(uint32_t channelCount, uint32_t sampleSize, uint32_t 
 void QtAudioInput::createAudioInput()
 {
     OPENAUTO_LOG(debug) << "[AudioInput] create.";
-    audioInput_ = (std::make_unique<QAudioInput>(QAudioDeviceInfo::defaultInputDevice(), audioFormat_));
+    audioInput_ = std::make_unique<QAudioSource>(QMediaDevices::defaultAudioInput(), audioFormat_);
 }
 
 bool QtAudioInput::open()
@@ -97,7 +107,7 @@ void QtAudioInput::stop()
 
 uint32_t QtAudioInput::getSampleSize() const
 {
-    return audioFormat_.sampleSize();
+    return sampleSize_;
 }
 
 uint32_t QtAudioInput::getChannelCount() const

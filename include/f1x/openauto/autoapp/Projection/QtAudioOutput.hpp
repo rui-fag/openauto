@@ -18,10 +18,13 @@
 
 #pragma once
 
-#include <QAudioOutput>
+#include <QAudioSink>
 #include <QAudioFormat>
+#include <QByteArray>
+#include <QIODevice>
+#include <QMediaDevices>
+#include <QTimer>
 #include <f1x/openauto/autoapp/Projection/IAudioOutput.hpp>
-#include <f1x/openauto/autoapp/Projection/SequentialBuffer.hpp>
 
 namespace f1x
 {
@@ -54,15 +57,21 @@ signals:
 
 protected slots:
     void createAudioOutput();
+    void pumpAudio();
     void onStartPlayback();
     void onSuspendPlayback();
     void onStopPlayback();
 
 private:
     QAudioFormat audioFormat_;
-    SequentialBuffer audioBuffer_;
-    std::unique_ptr<QAudioOutput> audioOutput_;
+    std::unique_ptr<QAudioSink> audioOutput_;
+    QIODevice* audioDevice_;
+    QByteArray pendingAudio_;
+    qsizetype pendingAudioOffset_{0};
+    std::unique_ptr<QTimer> audioPumpTimer_;
     bool playbackStarted_;
+    qint64 maxQueuedBytes_;
+    uint32_t sampleSize_;
 };
 
 }

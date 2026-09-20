@@ -20,6 +20,12 @@
 #include <f1x/openauto/autoapp/Projection/IInputDeviceEventHandler.hpp>
 #include <f1x/openauto/autoapp/Projection/InputDevice.hpp>
 
+#include <QApplication>
+#include <QMetaObject>
+#include <QThread>
+#include <QWidget>
+#include <QWindow>
+
 namespace f1x
 {
 namespace openauto
@@ -41,25 +47,91 @@ InputDevice::InputDevice(QObject& parent, configuration::IConfiguration::Pointer
 
 void InputDevice::start(IInputDeviceEventHandler& eventHandler)
 {
-    std::lock_guard<decltype(mutex_)> lock(mutex_);
-
     OPENAUTO_LOG(info) << "[InputDevice] start.";
-    eventHandler_ = &eventHandler;
-    parent_.installEventFilter(this);
+    {
+        std::lock_guard<decltype(mutex_)> lock(mutex_);
+        eventHandler_ = &eventHandler;
+    }
+
+    auto installFilter = [this]() {
+        parent_.installEventFilter(this);
+        // Also install on every top-level widget (including the fullscreen QVideoWidget
+        // which is a separate native window and may not propagate events through QApplication)
+        for(QWidget* w : QApplication::topLevelWidgets())
+        {
+            w->installEventFilter(this);
+            // Also install on all children to catch events on internal viewports
+            for(QObject* child : w->findChildren<QWidget*>())
+            {
+                child->installEventFilter(this);
+            }
+        }
+    };
+    if(QThread::currentThread() == parent_.thread())
+    {
+        installFilter();
+    }
+    else
+    {
+        QMetaObject::invokeMethod(&parent_, installFilter, Qt::BlockingQueuedConnection);
+    }
+    OPENAUTO_LOG(debug) << "[InputDevice] application event filter installed; touchscreen enabled="
+                         << configuration_->getTouchscreenEnabled();
 }
 
 void InputDevice::stop()
 {
-    std::lock_guard<decltype(mutex_)> lock(mutex_);
-
     OPENAUTO_LOG(info) << "[InputDevice] stop.";
-    parent_.removeEventFilter(this);
-    eventHandler_ = nullptr;
+
+    // Disable callbacks before synchronously touching Qt-owned objects.  The
+    // Qt event thread may currently be in eventFilter() and waiting for this
+    // mutex; holding it across BlockingQueuedConnection would deadlock the
+    // disconnect/reconnect path.
+    {
+        std::lock_guard<decltype(mutex_)> lock(mutex_);
+        eventHandler_ = nullptr;
+    }
+
+    auto removeFilter = [this]() {
+        parent_.removeEventFilter(this);
+        for(QWidget* w : QApplication::topLevelWidgets())
+        {
+            w->removeEventFilter(this);
+            for(QObject* child : w->findChildren<QWidget*>())
+            {
+                child->removeEventFilter(this);
+            }
+        }
+    };
+    if(QThread::currentThread() == parent_.thread())
+    {
+        removeFilter();
+    }
+    else
+    {
+        QMetaObject::invokeMethod(&parent_, removeFilter, Qt::BlockingQueuedConnection);
+    }
 }
 
 bool InputDevice::eventFilter(QObject* obj, QEvent* event)
 {
     std::lock_guard<decltype(mutex_)> lock(mutex_);
+
+    // Dynamically install filter on new top-level widgets (e.g. QVideoWidget shown after start())
+    if(event->type() == QEvent::Show || event->type() == QEvent::WinIdChange)
+    {
+        QWidget* w = qobject_cast<QWidget*>(obj);
+        if(w && w->isWindow())
+        {
+            w->installEventFilter(this);
+            for(QObject* child : w->findChildren<QWidget*>())
+            {
+                child->installEventFilter(this);
+            }
+            OPENAUTO_LOG(debug) << "[InputDevice] installed filter on new top-level widget: "
+                                << obj->metaObject()->className();
+        }
+    }
 
     if(eventHandler_ != nullptr)
     {
@@ -73,7 +145,7 @@ bool InputDevice::eventFilter(QObject* obj, QEvent* event)
         }
         else if(event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseMove)
         {
-            return this->handleTouchEvent(event);
+            return this->handleTouchEvent(obj, event);
         }
     }
 
@@ -180,7 +252,7 @@ bool InputDevice::handleKeyEvent(QEvent* event, QKeyEvent* key)
     return true;
 }
 
-bool InputDevice::handleTouchEvent(QEvent* event)
+bool InputDevice::handleTouchEvent(QObject* obj, QEvent* event)
 {
     if(!configuration_->getTouchscreenEnabled())
     {
@@ -204,15 +276,45 @@ bool InputDevice::handleTouchEvent(QEvent* event)
         return true;
     };
 
-    QMouseEvent* mouse = static_cast<QMouseEvent*>(event);
+	QMouseEvent* mouse = static_cast<QMouseEvent*>(event);
+
+	if(event->type() != QEvent::MouseButtonRelease &&
+	   !mouse->buttons().testFlag(Qt::LeftButton))
+	{
+		return true;
+	}
+
     if(event->type() == QEvent::MouseButtonRelease || mouse->buttons().testFlag(Qt::LeftButton))
     {
-        const uint32_t x = (static_cast<float>(mouse->pos().x()) / touchscreenGeometry_.width()) * displayGeometry_.width();
-        const uint32_t y = (static_cast<float>(mouse->pos().y()) / touchscreenGeometry_.height()) * displayGeometry_.height();
+		// The event filter is installed on the video widget and its children.
+		// QMouseEvent::pos() is relative to the receiving child, so using it
+		// directly makes the same physical click map to different AA locations.
+		// Always map from the global screen position instead.
+		const auto globalPosition = mouse->globalPosition().toPoint();
+		const auto screenX = globalPosition.x() - touchscreenGeometry_.left();
+		const auto screenY = globalPosition.y() - touchscreenGeometry_.top();
+		const auto normalizedX = std::clamp(static_cast<float>(screenX) / touchscreenGeometry_.width(), 0.0f, 1.0f);
+		const auto normalizedY = std::clamp(static_cast<float>(screenY) / touchscreenGeometry_.height(), 0.0f, 1.0f);
+		const uint32_t x = static_cast<uint32_t>(normalizedX * displayGeometry_.width());
+		const uint32_t y = static_cast<uint32_t>(normalizedY * displayGeometry_.height());
+		QWidget* widget = qobject_cast<QWidget*>(obj);
+		const auto windowGeometry = widget == nullptr
+			? QRect{}
+			: QRect(widget->window()->mapToGlobal(QPoint(0, 0)), widget->window()->size());
+		OPENAUTO_LOG(debug) << "[InputDevice]"
+			<< "x: " << x
+			<< ", y: " << y
+			<< ", type: " << type
+			<< ", object: " << obj->metaObject()->className()
+			<< ", global: (" << globalPosition.x() << "," << globalPosition.y() << ")"
+			<< ", screen: " << touchscreenGeometry_.x() << "," << touchscreenGeometry_.y()
+			<< " " << touchscreenGeometry_.width() << "x" << touchscreenGeometry_.height()
+			<< ", video: " << displayGeometry_.width() << "x" << displayGeometry_.height()
+			<< ", window: " << windowGeometry.x() << "," << windowGeometry.y()
+			<< " " << windowGeometry.width() << "x" << windowGeometry.height();
         eventHandler_->onTouchEvent({type, x, y, 0});
-    }
-
-    return true;
+	}
+		return true;
 }
 
 bool InputDevice::hasTouchscreen() const
@@ -225,7 +327,12 @@ QRect InputDevice::getTouchscreenGeometry() const
     return touchscreenGeometry_;
 }
 
-IInputDevice::ButtonCodes InputDevice::getSupportedButtonCodes() const
+QRect InputDevice::getDisplayGeometry() const
+{
+	return displayGeometry_;
+}
+
+InputDevice::ButtonCodes InputDevice::getSupportedButtonCodes() const
 {
     return configuration_->getButtonCodes();
 }

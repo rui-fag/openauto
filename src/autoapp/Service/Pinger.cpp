@@ -17,6 +17,8 @@
 */
 
 #include <f1x/openauto/autoapp/Service/Pinger.hpp>
+#include <f1x/openauto/Common/Log.hpp>
+#include <chrono>
 
 namespace f1x
 {
@@ -27,7 +29,7 @@ namespace autoapp
 namespace service
 {
 
-Pinger::Pinger(boost::asio::io_service& ioService, time_t duration)
+Pinger::Pinger(boost::asio::io_context& ioService, time_t duration)
     : strand_(ioService)
     , timer_(ioService)
     , duration_(duration)
@@ -40,62 +42,115 @@ Pinger::Pinger(boost::asio::io_service& ioService, time_t duration)
 
 void Pinger::ping(Promise::Pointer promise)
 {
-    strand_.dispatch([this, self = this->shared_from_this(), promise = std::move(promise)]() mutable {
-        cancelled_ = false;
-
-        if(promise_ != nullptr)
+    boost::asio::post(
+        strand_,
+        [this,
+         self = this->shared_from_this(),
+         promise = std::move(promise)]() mutable
         {
-            promise_->reject(aasdk::error::Error(aasdk::error::ErrorCode::OPERATION_IN_PROGRESS));
-        }
-        else
-        {
-            ++pingsCount_;
+            cancelled_ = false;
 
-            promise_ = std::move(promise);
-            timer_.expires_from_now(boost::posix_time::milliseconds(duration_));
-            timer_.async_wait(strand_.wrap(std::bind(&Pinger::onTimerExceeded, this->shared_from_this(), std::placeholders::_1)));
-        }
-    });
+            if (promise_ != nullptr)
+            {
+                OPENAUTO_LOG(error)
+                    << "[Pinger] ping already in progress";
+
+                promise_->reject(
+                    aasdk::error::Error(
+                        aasdk::error::ErrorCode::OPERATION_IN_PROGRESS));
+            }
+            else
+            {
+                ++pingsCount_;
+
+                OPENAUTO_LOG(debug)
+                    << "[Pinger] ping started: pings="
+                    << pingsCount_
+                    << " pongs="
+                    << pongsCount_;
+
+                promise_ = std::move(promise);
+
+                timer_.expires_after(
+                    std::chrono::milliseconds(duration_));
+
+                timer_.async_wait(
+                    boost::asio::bind_executor(
+                        strand_,
+                        std::bind(
+                            &Pinger::onTimerExceeded,
+                            self,
+                            std::placeholders::_1)));
+            }
+        });
 }
 
 void Pinger::pong()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
-        ++pongsCount_;
-    });
+    boost::asio::post(
+        strand_,
+        [this, self = this->shared_from_this()]() mutable
+        {
+            ++pongsCount_;
+
+            OPENAUTO_LOG(debug)
+                << "[Pinger] pong: pings="
+                << pingsCount_
+                << " pongs="
+                << pongsCount_;
+        });
 }
 
-void Pinger::onTimerExceeded(const boost::system::error_code& error)
+void Pinger::onTimerExceeded(
+    const boost::system::error_code& error)
 {
-    if(promise_ == nullptr)
-    {
-        return;
-    }
-    else if(error == boost::asio::error::operation_aborted || cancelled_)
-    {
-        promise_->reject(aasdk::error::Error(aasdk::error::ErrorCode::OPERATION_ABORTED));
-    }
-    else if(pingsCount_ - pongsCount_ > 1)
-    {
-        promise_->reject(aasdk::error::Error());
-    }
-    else
-    {
-        promise_->resolve();
-    }
+    OPENAUTO_LOG(debug)
+        << "[Pinger] timer: error="
+        << error.value()
+        << " cancelled="
+        << cancelled_
+        << " pings="
+        << pingsCount_
+        << " pongs="
+        << pongsCount_;
 
-    promise_.reset();
+	if(promise_ == nullptr)
+	{
+		return;
+	}
+	else if(error == boost::asio::error::operation_aborted || cancelled_)
+	{
+		promise_->reject(aasdk::error::Error(aasdk::error::ErrorCode::OPERATION_ABORTED));
+	}
+	else if(pingsCount_ - pongsCount_ > 1)
+	{
+		promise_->reject(aasdk::error::Error());
+	}
+	else
+	{
+		promise_->resolve();
+	}
+
+	promise_.reset();
 }
 
 void Pinger::cancel()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
-        cancelled_ = true;
-        timer_.cancel();
-    });
+    boost::asio::post(
+        strand_,
+        [this, self = this->shared_from_this()]() mutable
+        {
+            cancelled_ = true;
+            timer_.cancel();
+
+            OPENAUTO_LOG(debug)
+                << "[Pinger] cancel";
+        });
 }
 
 }
 }
 }
+
+
 }

@@ -45,6 +45,8 @@ public:
     virtual ButtonCodes getSupportedButtonCodes() const = 0;
     virtual bool hasTouchscreen() const = 0;
     virtual QRect getTouchscreenGeometry() const = 0;
+
+	virtual QRect getDisplayGeometry() const = 0;
 };
 
 }

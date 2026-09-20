@@ -118,7 +118,7 @@ void Configuration::reset()
     handednessOfTrafficType_ = HandednessOfTrafficType::LEFT_HAND_DRIVE;
     showClock_ = true;
     videoFPS_ = aasdk::proto::enums::VideoFPS::_60;
-    videoResolution_ = aasdk::proto::enums::VideoResolution::_480p;
+    videoResolution_ = aasdk::proto::enums::VideoResolution::_1080p;
     screenDPI_ = 140;
     omxLayerIndex_ = 1;
     videoMargins_ = QRect(0, 0, 0, 0);
@@ -128,7 +128,7 @@ void Configuration::reset()
     bluetoothRemoteAdapterAddress_ = "";
     musicAudioChannelEnabled_ = true;
     speechAudiochannelEnabled_ = true;
-    audioOutputBackendType_ = AudioOutputBackendType::RTAUDIO;
+    audioOutputBackendType_ = AudioOutputBackendType::QT;
 }
 
 void Configuration::save()

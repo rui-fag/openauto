@@ -29,7 +29,7 @@ namespace openauto
 namespace autoapp
 {
 
-App::App(boost::asio::io_service& ioService, aasdk::usb::USBWrapper& usbWrapper, aasdk::tcp::ITCPWrapper& tcpWrapper, service::IAndroidAutoEntityFactory& androidAutoEntityFactory,
+App::App(boost::asio::io_context& ioService, aasdk::usb::USBWrapper& usbWrapper, aasdk::tcp::ITCPWrapper& tcpWrapper, service::IAndroidAutoEntityFactory& androidAutoEntityFactory,
          aasdk::usb::IUSBHub::Pointer usbHub, aasdk::usb::IConnectedAccessoriesEnumerator::Pointer connectedAccessoriesEnumerator)
     : ioService_(ioService)
     , usbWrapper_(usbWrapper)
@@ -45,7 +45,9 @@ App::App(boost::asio::io_service& ioService, aasdk::usb::USBWrapper& usbWrapper,
 
 void App::waitForUSBDevice()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
+	boost::asio::post(strand_,
+		[this, self = this->shared_from_this()](){
+
         this->waitForDevice();
         this->enumerateDevices();
     });
@@ -53,7 +55,12 @@ void App::waitForUSBDevice()
 
 void App::start(aasdk::tcp::ITCPEndpoint::SocketPointer socket)
 {
-    strand_.dispatch([this, self = this->shared_from_this(), socket = std::move(socket)]() mutable {
+	boost::asio::post(strand_,
+		[this, self = this->shared_from_this(),
+		 socket = std::move(socket)]() mutable {
+
+
+
         if(androidAutoEntity_ != nullptr)
         {
             tcpWrapper_.close(*socket);
@@ -82,7 +89,9 @@ void App::start(aasdk::tcp::ITCPEndpoint::SocketPointer socket)
 
 void App::stop()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
+	boost::asio::post(strand_,
+		[this, self = this->shared_from_this()]() {
+
         isStopped_ = true;
         connectedAccessoriesEnumerator_->cancel();
         usbHub_->cancel();
@@ -105,11 +114,16 @@ void App::aoapDeviceHandler(aasdk::usb::DeviceHandle deviceHandle)
         return;
     }
 
-    try
-    {
-        connectedAccessoriesEnumerator_->cancel();
+        try
+        {
+            // The hotplug callback belongs to the discovery phase.  Tear it
+            // down before handing the device to the Android Auto session so
+            // the next session can register a fresh callback after a
+            // disconnect/reconnect cycle.
+            connectedAccessoriesEnumerator_->cancel();
+            usbHub_->cancel();
 
-        auto aoapDevice(aasdk::usb::AOAPDevice::create(usbWrapper_, ioService_, deviceHandle));
+            auto aoapDevice(aasdk::usb::AOAPDevice::create(usbWrapper_, ioService_, deviceHandle));
         androidAutoEntity_ = androidAutoEntityFactory_.create(std::move(aoapDevice));
         androidAutoEntity_->start(*this);
     }
@@ -125,9 +139,9 @@ void App::aoapDeviceHandler(aasdk::usb::DeviceHandle deviceHandle)
 void App::enumerateDevices()
 {
     auto promise = aasdk::usb::IConnectedAccessoriesEnumerator::Promise::defer(strand_);
-    promise->then([this, self = this->shared_from_this()](auto result) {
-            OPENAUTO_LOG(info) << "[App] Devices enumeration result: " << result;
-        },
+    promise->then(    [this, self = this->shared_from_this()](auto result) {
+        OPENAUTO_LOG(info) << "[App] Devices enumeration result: " << result;
+    },
         [this, self = this->shared_from_this()](auto e) {
             OPENAUTO_LOG(error) << "[App] Devices enumeration failed: " << e.what();
         });
@@ -147,11 +161,17 @@ void App::waitForDevice()
 
 void App::onAndroidAutoQuit()
 {
-    strand_.dispatch([this, self = this->shared_from_this()]() {
+	boost::asio::post(strand_,[this, self = this->shared_from_this()]() {
+
         OPENAUTO_LOG(info) << "[App] quit.";
 
-        androidAutoEntity_->stop();
-        androidAutoEntity_.reset();
+        if(androidAutoEntity_ == nullptr)
+        {
+            return;
+        }
+
+        auto entity = std::move(androidAutoEntity_);
+        entity->stop();
 
         if(!isStopped_)
         {

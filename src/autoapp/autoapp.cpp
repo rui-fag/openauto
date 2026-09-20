@@ -18,6 +18,7 @@
 
 #include <thread>
 #include <QApplication>
+#include <QFileInfo>
 #include <f1x/aasdk/USB/USBHub.hpp>
 #include <f1x/aasdk/USB/ConnectedAccessoriesEnumerator.hpp>
 #include <f1x/aasdk/USB/AccessoryModeQueryChain.hpp>
@@ -39,7 +40,53 @@ namespace aasdk = f1x::aasdk;
 namespace autoapp = f1x::openauto::autoapp;
 using ThreadPool = std::vector<std::thread>;
 
-void startUSBWorkers(boost::asio::io_service& ioService, libusb_context* usbContext, ThreadPool& threadPool)
+namespace
+{
+void configureMediaEnvironment()
+{
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM") &&
+        (qEnvironmentVariable("XDG_SESSION_TYPE") == QStringLiteral("wayland") ||
+         !qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")))
+    {
+        qputenv("QT_QPA_PLATFORM", "wayland");
+    }
+
+    if (qEnvironmentVariableIsEmpty("QT_MEDIA_BACKEND"))
+    {
+        qputenv("QT_MEDIA_BACKEND", "ffmpeg");
+    }
+
+    if (qEnvironmentVariableIsEmpty("QT_FFMPEG_DECODING_HW_DEVICE_TYPES"))
+    {
+        qputenv("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", "vaapi");
+    }
+
+    if (qEnvironmentVariableIsEmpty("LIBVA_DRIVER_NAME"))
+    {
+        const QStringList candidateDrivers = {QStringLiteral("iHD"), QStringLiteral("intel"), QStringLiteral("i965")};
+        const QStringList candidatePaths = {
+            QStringLiteral("/usr/lib/x86_64-linux-gnu/dri/%1_drv_video.so"),
+            QStringLiteral("/usr/lib/x86_64-linux-gnu/dri/%1_dri.so"),
+            QStringLiteral("/usr/lib/dri/%1_drv_video.so"),
+            QStringLiteral("/usr/lib/dri/%1_dri.so")};
+
+        for (const auto& driver : candidateDrivers)
+        {
+            for (const auto& pathPattern : candidatePaths)
+            {
+                const auto path = pathPattern.arg(driver);
+                if (QFileInfo::exists(path))
+                {
+                    qputenv("LIBVA_DRIVER_NAME", driver.toLatin1());
+                    return;
+                }
+            }
+        }
+    }
+}
+}
+
+void startUSBWorkers(boost::asio::io_context& ioService, libusb_context* usbContext, ThreadPool& threadPool)
 {
     auto usbWorker = [&ioService, usbContext]() {
         timeval libusbEventTimeout{180, 0};
@@ -56,7 +103,7 @@ void startUSBWorkers(boost::asio::io_service& ioService, libusb_context* usbCont
     threadPool.emplace_back(usbWorker);
 }
 
-void startIOServiceWorkers(boost::asio::io_service& ioService, ThreadPool& threadPool)
+void startIOServiceWorkers(boost::asio::io_context& ioService, ThreadPool& threadPool)
 {
     auto ioServiceWorker = [&ioService]() {
         ioService.run();
@@ -70,6 +117,8 @@ void startIOServiceWorkers(boost::asio::io_service& ioService, ThreadPool& threa
 
 int main(int argc, char* argv[])
 {
+    configureMediaEnvironment();
+
     libusb_context* usbContext;
     if(libusb_init(&usbContext) != 0)
     {
@@ -77,8 +126,8 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    boost::asio::io_service ioService;
-    boost::asio::io_service::work work(ioService);
+    boost::asio::io_context ioService;
+	auto executor_work_guard = boost::asio::make_work_guard(ioService);
     std::vector<std::thread> threadPool;
     startUSBWorkers(ioService, usbContext, threadPool);
     startIOServiceWorkers(ioService, threadPool);
@@ -102,13 +151,10 @@ int main(int argc, char* argv[])
     QObject::connect(&mainWindow, &autoapp::ui::MainWindow::openSettings, &settingsWindow, &autoapp::ui::SettingsWindow::showFullScreen);
     QObject::connect(&mainWindow, &autoapp::ui::MainWindow::openConnectDialog, &connectDialog, &autoapp::ui::ConnectDialog::exec);
 
-    qApplication.setOverrideCursor(Qt::BlankCursor);
     QObject::connect(&mainWindow, &autoapp::ui::MainWindow::toggleCursor, [&qApplication]() {
         const auto cursor = qApplication.overrideCursor()->shape() == Qt::BlankCursor ? Qt::ArrowCursor : Qt::BlankCursor;
         qApplication.setOverrideCursor(cursor);
     });
-
-    mainWindow.showFullScreen();
 
     aasdk::usb::USBWrapper usbWrapper(usbContext);
     aasdk::usb::AccessoryModeQueryFactory queryFactory(usbWrapper, ioService);

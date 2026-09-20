@@ -1,4 +1,86 @@
-# Add any directories, files, or patterns you don't want to be tracked by version control
-lib/
+# ================= OpenAuto .gitignore =================
+# Build outputs
 bin/
+lib/
+build/
+build-*/
+cmake-build-*/
+out/
+
+# CMake generated files (in-source and out-of-source builds)
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+Testing/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+install_manifest.txt
+compile_commands.json
+
+# Qt auto-generated files
+*_autogen/
+.qt/
+*.moc
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+
+# Object files, static/shared libs and debug symbols
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.dSYM/
+*.pdb
+*.ilk
+*.exp
+
+# Profiling and debugging artifacts
+perf.data
+perf.data.old
+gmon.out
+*.prof
+*.gcda
+*.gcno
+*.gcov
+core
+core.*
+
+# ctags / cscope databases
+tags
+TAGS
+.tags
+cscope.*
+
+# Editor and IDE files
+*~
+*.swp
+*.swo
+*.orig
+*.rej
+.vscode/
+.idea/
+.vs/
+*.cbp
+*.creator*
+.clangd/
+.cache/clangd/
+
+# Qt Creator / CMake user-local settings
 CMakeLists.txt.user
+*.pro.user
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NOTE: aasdk/ is a bundled source tree (separate git repo), not a build
+# artifact, so it is intentionally NOT ignored here.
