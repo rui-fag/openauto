@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="OpenAuto modernized fork — Android Auto headunit emulator for Linux with Qt6, FFmpeg/VAAPI hardware video decode and a unified CMake build.">
+<title>OpenAuto — Android Auto headunit for Linux</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #182028; --panel2: #1f2933;
+    --text: #e6edf3; --muted: #9aa7b4; --accent: #3fb950; --accent2: #58a6ff;
+    --border: #2d3842; --code: #0b0f14;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.6; }
+  header.hero { padding: 64px 24px 48px; text-align: center;
+    background: radial-gradient(60% 90% at 50% 0%, #1c2b1f 0%, var(--bg) 70%); }
+  header.hero h1 { font-size: 2.6rem; margin: 0 0 8px; letter-spacing: -0.02em; }
+  header.hero h1 span { color: var(--accent); }
+  header.hero p.tag { color: var(--muted); font-size: 1.15rem; max-width: 640px; margin: 0 auto 24px; }
+  .btns a { display: inline-block; margin: 6px; padding: 12px 26px; border-radius: 8px;
+    text-decoration: none; font-weight: 600; border: 1px solid var(--border); }
+  .btns a.primary { background: var(--accent); color: #06110a; border-color: var(--accent); }
+  .btns a.ghost { color: var(--text); background: var(--panel); }
+  nav.top { position: sticky; top: 0; z-index: 10; background: rgba(15,20,25,.92);
+    border-bottom: 1px solid var(--border); backdrop-filter: blur(6px); }
+  nav.top div { max-width: 960px; margin: 0 auto; padding: 10px 24px; display: flex;
+    gap: 18px; flex-wrap: wrap; align-items: center; }
+  nav.top a { color: var(--muted); text-decoration: none; font-size: .95rem; }
+  nav.top a:hover { color: var(--text); }
+  nav.top strong { margin-right: auto; color: var(--text); }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 24px 80px; }
+  section { margin: 40px 0; }
+  h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.05rem; color: var(--accent); }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  pre { background: var(--code); border: 1px solid var(--border); border-radius: 10px;
+        padding: 16px 18px; overflow-x: auto; font-size: .88rem; }
+  code.inline, p code, li code, td code { background: var(--panel2); padding: 2px 6px; border-radius: 5px; font-size: .88em; }
+  ul.tight li { margin: 4px 0; }
+  footer { border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem;
+           text-align: center; padding: 28px 24px 40px; }
+  footer a { color: var(--accent2); }
+  a { color: var(--accent2); }
+</style>
+</head>
+<body>
+
+<nav class="top"><div>
+  <strong>OpenAuto</strong>
+  <a href="#features">Features</a>
+  <a href="#whats-new">What's new</a>
+  <a href="#install">Install</a>
+  <a href="#build">Build</a>
+  <a href="#run">Run</a>
+  <a href="https://github.com/rui-fag/openauto">GitHub</a>
+</div></nav>
+
+<header class="hero">
+  <h1>Open<span>Auto</span></h1>
+  <p class="tag">Turn a Linux PC or Raspberry Pi into an Android&nbsp;Auto head unit.
+     Modernized fork: Qt6, FFmpeg/VAAPI hardware video, unified CMake build.</p>
+  <div class="btns">
+    <a class="primary" href="https://github.com/rui-fag/openauto">View on GitHub</a>
+    <a class="ghost" href="#install">Get started</a>
+  </div>
+</header>
+
+<main>
+
+<section id="features">
+  <h2>Features</h2>
+  <div class="cards">
+    <div class="card"><h3>📺 480p – 1080p @ 30/60 FPS</h3><p>Hardware-accelerated H.264 decode via VAAPI/FFmpeg with automatic software fallback.</p></div>
+    <div class="card"><h3>🔊 Full audio</h3><p>Media, System and Speech playback plus microphone input, over Qt or RtAudio backends.</p></div>
+    <div class="card"><h3>👆 Touch &amp; buttons</h3><p>Touchscreen, buttons, scroll wheel and rotary input forwarding.</p></div>
+    <div class="card"><h3>📡 USB + Wi-Fi</h3><p>USB hotplug/AOAP handshake, wireless mode via the phone's head-unit server, and a Bluetooth companion daemon.</p></div>
+  </div>
+</section>
+
+<section id="whats-new">
+  <h2>What's new vs upstream</h2>
+  <p>Forked from <a href="https://github.com/f1xpl/openauto">f1xpl/openauto</a> (2018, Qt5/C++14).
+     Headline changes — full details in the <a href="https://github.com/rui-fag/openauto/blob/development/Readme.md">README</a>:</p>
+  <ul class="tight">
+    <li><strong>Single unified build</strong> — <code>aasdk/</code> vendored in-tree; one <code>cmake --build . --target build</code> compiles library + app.</li>
+    <li><strong>Qt5 → Qt6</strong> multimedia stack (Multimedia, Bluetooth, Wayland client, FFmpeg plugin APIs).</li>
+    <li><strong>VAAPI hardware video decode</strong> with driver auto-detection.</li>
+    <li><strong>Modern Boost</strong> (<code>io_context</code>, verified 1.92), <strong>C++17</strong>, <strong>CMake 4</strong>, protobuf 36 + Abseil.</li>
+    <li><strong>RtAudio</strong> output backend, LTO release flags, refreshed docs.</li>
+  </ul>
+</section>
+
+<section id="install">
+  <h2>Install dependencies</h2>
+  <p>Arch Linux (verified: Boost 1.92, Qt 6.11, protoc 36.1):</p>
+<pre>sudo pacman -S --needed base-devel cmake ninja pkgconf \
+  boost boost-libs \
+  qt6-base qt6-multimedia qt6-multimedia-ffmpeg qt6-connectivity \
+  qt6-declarative qt6-wayland wayland \
+  ffmpeg libva libva-utils libusb openssl protobuf abseil-cpp grpc \
+  rtaudio libx11 libxrandr libxext libglvnd egl-wayland</pre>
+  <p>Ubuntu 24.04+, Fedora 41+ and openSUSE commands are in the
+     <a href="https://github.com/rui-fag/openauto/blob/development/Readme.md#5-installing-dependencies">README §5</a>.</p>
+</section>
+
+<section id="build">
+  <h2>Build</h2>
+<pre>cd openauto
+cmake -DCMAKE_BUILD_TYPE=Release .
+cmake --build . --target build -j$(nproc)
+# → bin/autoapp  bin/btservice  aasdk/lib/libaasdk.a  aasdk/lib/libaasdk_proto.a</pre>
+</section>
+
+<section id="run">
+  <h2>Run</h2>
+<pre>./bin/btservice &amp;   # Bluetooth calling features (optional)
+./bin/autoapp       # plug the phone in over USB and accept the prompts</pre>
+  <p>First run: open <strong>Settings</strong> for resolution/FPS, audio backend and input options.
+     For USB permissions (udev rule), Wi-Fi mode and troubleshooting, see the
+     <a href="https://github.com/rui-fag/openauto/blob/development/Readme.md#7-running">README §§7–9</a>.</p>
+</section>
+
+<section id="source">
+  <h2>Source &amp; license</h2>
+  <table>
+    <tr><th>Repository</th><td><a href="https://github.com/rui-fag/openauto">github.com/rui-fag/openauto</a> (branch <code>development</code>)</td></tr>
+    <tr><th>Upstream</th><td><a href="https://github.com/f1xpl/openauto">github.com/f1xpl/openauto</a> · <a href="https://github.com/f1xpl/aasdk">github.com/f1xpl/aasdk</a></td></tr>
+    <tr><th>License</th><td>GNU GPLv3</td></tr>
+  </table>
+  <p><small>Android Auto is a registered trademark of Google Inc. Not certified by Google — for R&amp;D purposes. Do not use while driving.</small></p>
+</section>
+
+</main>
+
+<footer>
+  OpenAuto modernized fork · GPLv3 ·
+  <a href="https://github.com/rui-fag/openauto">GitHub</a> ·
+  <a href="https://github.com/rui-fag/openauto/blob/development/Readme.md">Full documentation</a>
+</footer>
+
+</body>
+</html>
