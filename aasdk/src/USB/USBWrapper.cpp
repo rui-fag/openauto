@@ -176,6 +176,11 @@ libusb_transfer* USBWrapper::allocTransfer(int iso_packets)
     return libusb_alloc_transfer(iso_packets);
 }
 
+int USBWrapper::resetDevice(const DeviceHandle& dev_handle)
+{
+    return libusb_reset_device(dev_handle.get());
+}
+
 }
 }
 }

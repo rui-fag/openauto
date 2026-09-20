@@ -47,6 +47,7 @@ AndroidAutoEntity::AndroidAutoEntity(boost::asio::io_context& ioService,
     , serviceList_(std::move(serviceList))
     , pinger_(std::move(pinger))
     , eventHandler_(nullptr)
+    , authCompleted_(false)
 {
 }
 
@@ -90,6 +91,11 @@ void AndroidAutoEntity::stop()
         transport_->stop();
         cryptor_->deinit();
     });
+}
+
+bool AndroidAutoEntity::isAuthCompleted() const
+{
+    return authCompleted_;
 }
 
 void AndroidAutoEntity::onVersionResponse(uint16_t majorCode, uint16_t minorCode, aasdk::proto::enums::VersionResponseStatus::Enum status)
@@ -142,6 +148,7 @@ void AndroidAutoEntity::onHandshake(const aasdk::common::DataConstBuffer& payloa
         else
         {
             OPENAUTO_LOG(info) << "[AndroidAutoEntity] Auth completed.";
+            authCompleted_ = true;
 
             aasdk::proto::messages::AuthCompleteIndication authCompleteIndication;
             authCompleteIndication.set_status(aasdk::proto::enums::Status::OK);

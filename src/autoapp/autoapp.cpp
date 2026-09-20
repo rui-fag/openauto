@@ -147,7 +147,6 @@ int main(int argc, char* argv[])
     autoapp::ui::ConnectDialog connectDialog(ioService, tcpWrapper, recentAddressesList);
     connectDialog.setWindowFlags(Qt::WindowStaysOnTopHint);
 
-    QObject::connect(&mainWindow, &autoapp::ui::MainWindow::exit, []() { std::exit(0); });
     QObject::connect(&mainWindow, &autoapp::ui::MainWindow::openSettings, &settingsWindow, &autoapp::ui::SettingsWindow::showFullScreen);
     QObject::connect(&mainWindow, &autoapp::ui::MainWindow::openConnectDialog, &connectDialog, &autoapp::ui::ConnectDialog::exec);
 
@@ -170,9 +169,27 @@ int main(int argc, char* argv[])
         app->start(std::move(socket));
     });
 
+    QObject::connect(&mainWindow, &autoapp::ui::MainWindow::exit, [&app, &qApplication]() {
+        // Shut the Android Auto session down cleanly so the phone does not
+        // stay stuck in projection mode, then leave the Qt event loop so the
+        // workers below can be joined.
+        app->stop();
+        qApplication.quit();
+    });
+    QObject::connect(&qApplication, &QApplication::aboutToQuit, [&app]() {
+        app->stop();
+    });
+
     app->waitForUSBDevice();
 
     auto result = qApplication.exec();
+
+    // Tear the io_service down so the worker threads finish and can be joined
+    // instead of terminating the process abruptly with the USB session still
+    // open. The App::stop() posted above runs on the ioService while the Qt
+    // loop exits; destroying the entity afterwards releases the USB interface.
+    executor_work_guard.reset();
+    ioService.stop();
     std::for_each(threadPool.begin(), threadPool.end(), std::bind(&std::thread::join, std::placeholders::_1));
 
     libusb_exit(usbContext);

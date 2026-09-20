@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <f1x/aasdk/USB/IUSBHub.hpp>
 #include <f1x/aasdk/USB/IConnectedAccessoriesEnumerator.hpp>
 #include <f1x/aasdk/USB/USBWrapper.hpp>
@@ -50,8 +51,12 @@ private:
     using std::enable_shared_from_this<App>::shared_from_this;
     void enumerateDevices();
     void waitForDevice();
+    void scheduleWaitForDevice(std::chrono::milliseconds delay);
     void aoapDeviceHandler(aasdk::usb::DeviceHandle deviceHandle);
     void onUSBHubError(const aasdk::error::Error& error);
+    bool tryConnectToAlreadyConnectedDevice();
+    bool isAOAPDevice(const libusb_device_descriptor& deviceDescriptor) const;
+    bool resetAOAPDevice();
 
     boost::asio::io_context& ioService_;
     aasdk::usb::USBWrapper& usbWrapper_;
@@ -62,6 +67,18 @@ private:
     aasdk::usb::IConnectedAccessoriesEnumerator::Pointer connectedAccessoriesEnumerator_;
     service::IAndroidAutoEntity::Pointer androidAutoEntity_;
     bool isStopped_;
+    boost::asio::steady_timer retryTimer_;
+    int consecutiveStartupFailures_;
+    int usbResetsWithoutProgress_;
+    bool lastSessionWasUSB_;
+
+    static constexpr uint16_t cGoogleVendorId = 0x18D1;
+    static constexpr uint16_t cAOAPId = 0x2D00;
+    static constexpr uint16_t cAOAPWithAdbId = 0x2D01;
+    static constexpr int cMaxConsecutiveStartupFailures = 3;
+    static constexpr int cMaxUsbResetsWithoutProgress = 3;
+    static constexpr std::chrono::milliseconds cRetryDelay{1000};
+    static constexpr std::chrono::milliseconds cResetRecoveryDelay{3000};
 };
 
 }

@@ -80,6 +80,7 @@ public:
     virtual HotplugCallbackHandle hotplugRegisterCallback(libusb_hotplug_event events, libusb_hotplug_flag flags, int vendor_id, int product_id, int dev_class,
                                                           libusb_hotplug_callback_fn cb_fn, void *user_data) = 0;
     virtual libusb_transfer* allocTransfer(int iso_packets) = 0;
+    virtual int resetDevice(const DeviceHandle& dev_handle) = 0;
 };
 
 }

@@ -70,6 +70,7 @@ public:
     MOCK_METHOD7(hotplugRegisterCallback, HotplugCallbackHandle(libusb_hotplug_event events, libusb_hotplug_flag flags, int vendor_id, int product_id, int dev_class,
                                                                 libusb_hotplug_callback_fn cb_fn, void *user_data));
     MOCK_METHOD1(allocTransfer, libusb_transfer*(int iso_packets));
+    MOCK_METHOD1(resetDevice, int(const DeviceHandle& dev_handle));
 };
 
 }

@@ -39,6 +39,7 @@ public:
 
     virtual void start(IAndroidAutoEntityEventHandler& eventHandler) = 0;
     virtual void stop() = 0;
+    virtual bool isAuthCompleted() const = 0;
 };
 
 }

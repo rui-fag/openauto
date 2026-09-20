@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <boost/asio.hpp>
 #include <f1x/aasdk/Transport/ITransport.hpp>
 #include <f1x/aasdk/Channel/Control/IControlServiceChannel.hpp>
@@ -51,6 +52,7 @@ public:
 
     void start(IAndroidAutoEntityEventHandler& eventHandler) override;
     void stop() override;
+    bool isAuthCompleted() const override;
     void onVersionResponse(uint16_t majorCode, uint16_t minorCode, aasdk::proto::enums::VersionResponseStatus::Enum status) override;
     void onHandshake(const aasdk::common::DataConstBuffer& payload) override;
     void onServiceDiscoveryRequest(const aasdk::proto::messages::ServiceDiscoveryRequest& request) override;
@@ -76,6 +78,7 @@ private:
     ServiceList serviceList_;
     IPinger::Pointer pinger_;
     IAndroidAutoEntityEventHandler* eventHandler_;
+    std::atomic<bool> authCompleted_;
 };
 
 }
