@@ -3,7 +3,16 @@ project(openauto CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+else()
+    string(TOLOWER "${CMAKE_BUILD_TYPE}" _build_type_lower)
+
+    if(_build_type_lower STREQUAL "release")
+        set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    elseif(_build_type_lower STREQUAL "debug")
+        set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+    endif()
 endif()
+
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
