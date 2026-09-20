@@ -190,6 +190,13 @@ void QtVideoOutput::initDecoder()
         return;
     }
 
+    // Max-speed tuning: no delayed output, non-spec-compliant fast tricks,
+    // multithreaded decode with auto thread count (biggest software win).
+    codecContext_->flags |= AV_CODEC_FLAG_LOW_DELAY;
+    codecContext_->flags2 |= AV_CODEC_FLAG2_FAST;
+    codecContext_->thread_count = 0;
+    codecContext_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
     int ret = av_hwdevice_ctx_create(
         &hwDeviceContext_,
         AV_HWDEVICE_TYPE_VAAPI,
